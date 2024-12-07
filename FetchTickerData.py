@@ -3,7 +3,7 @@
 # -- Author : Ronaf - https://github.com/Ronaf-git
 # -- Created : 05/12/2024
 # -- Usage : Fetch Tickers data and save it into a csv file
-# -- Update : 
+# -- Update : 07/12/2024 - v0.1 release
 # --  
 # ----------------------------------------------------
 # --- Install/Create Exe
@@ -16,6 +16,7 @@
 # ===============================================================
 
 CONFIG_FILE = 'config.ini'
+TICKERS_FILE = 'tickers.txt'
 
 # ===============================================================
 # Imports
@@ -26,14 +27,12 @@ import os
 import sys
 import configparser
 import ctypes
+import tkinter as tk
 
 # ===============================================================
 # Functions
 # ===============================================================
-# Function to show a Windows message box
-def show_popup(title,text):
-    ctypes.windll.user32.MessageBoxW(0, text, title,0x0)
-    
+   
 def read_config(file_path):
         # Check if the config file exists
     if not os.path.exists(file_path):
@@ -58,10 +57,11 @@ def read_config(file_path):
 
 # Function to get the file path (works for both Python script and compiled executable)
 def get_file_path(file_name):
-    # If running from a bundled exe, the file will be in _MEIPASS directory
+    # If running from a bundled exe, the file will be in same folder as the exe
     if getattr(sys, 'frozen', False):
-        # Running as a bundled exe
-        return os.path.join(sys._MEIPASS, file_name)
+        # Running as a bundled exe, get the path to the directory of the exe
+        exe_dir = os.path.dirname(sys.executable)
+        return os.path.join(exe_dir, file_name)
     else:
         # Running as a Python script
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), file_name)
@@ -70,12 +70,14 @@ def get_file_path(file_name):
 def fetch_and_append_data(ticker,YFINANCE_DEFAULT_PERIOD,csv_file_path):
     # Fetch the stock data using yfinance
     stock_data = yf.Ticker(ticker)
-
+    company_name = (stock_data.info).get('longName', 'No name available')
+    
     # Get the historical data for the stock (daily data)
     historical_data = stock_data.history(period=YFINANCE_DEFAULT_PERIOD).reset_index() 
     historical_data['Date'] = pd.to_datetime(historical_data['Date'], errors='coerce').dt.date
-    # Add the ticker column as the first column
+    # Add the ticker column as the first column + name as second
     historical_data.insert(0, 'Ticker', ticker)
+    historical_data.insert(1, 'Ticker FullName', company_name)
 
     # Initialize an empty list to store the data
     data_to_append = []
@@ -110,17 +112,47 @@ def fetch_and_append_data(ticker,YFINANCE_DEFAULT_PERIOD,csv_file_path):
         # If the file doesn't exist, create it and write the data
         final_data.to_csv(csv_file_path, index=False)
 
+
+# Function to update the label and refresh the window
+def update_label(text):
+    label.config(text=text)
+    root.update()  
+# Function to close the window
+def close_window():
+    root.quit()
+
 # ===============================================================
 # Script
 # ===============================================================
+# --- Create the root window
+root = tk.Tk()
+root.title("FetchTickerData")
+# Add a label to the window
+label = tk.Label(root, text="Init")
+label.pack(padx=60, pady=60)
+
 # --- Variables
-# - Get Config Variables
-read_config(get_file_path(CONFIG_FILE))
-# - adjust variables
-csv_file_path = get_file_path(OUTPUT_FILE)  # Output CSV file
+try:
+    # - Get Config Variables
+    read_config(get_file_path(CONFIG_FILE))
+    # - Get tickers
+    with open(get_file_path(TICKERS_FILE), 'r') as file:
+        tickers = [line.strip() for line in file.readlines()]
+    # - adjust variables
+    csv_file_path = get_file_path(OUTPUT_FILE)  # Output CSV file
+except Exception as e:
+    update_label(f"Please check if {CONFIG_FILE} and {TICKERS_FILE} are in the same folder as the EXE file and are in the correct format")
+else:
+    try:
+        # Iterate through each ticker and process the data
+        for ticker in tickers:
+            update_label(f"Fetching {ticker}")
+            fetch_and_append_data(ticker, YFINANCE_DEFAULT_PERIOD, csv_file_path)
+        update_label(f"Data for your tickers has been exported to {csv_file_path}")
+    except Exception as e:
+        update_label('Unknown Error. Your data cannot be fully updated.')
 
-# Iterate through each ticker and process the data
-for ticker in TICKERS:
-    fetch_and_append_data(ticker,YFINANCE_DEFAULT_PERIOD,csv_file_path)
+# Schedule the window to close after 10 seconds (10000 milliseconds)
+root.after(10000, close_window)
 
-show_popup('Data updated',f"Data for your tickers has been exported to {csv_file_path}")
+root.mainloop()

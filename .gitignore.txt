@@ -43,3 +43,6 @@ yarn.lock
 # Ignore virtual environments (for Python projects)
 venv/
 env/
+
+#ignore my release folder
+/release/
