@@ -12,8 +12,8 @@ Thumbs.db
 *.exe
 
 # Ignore build directories
-/dist/
-/build/
+dist/
+build/
 
 # Ignore Python bytecode
 __pycache__/
@@ -45,4 +45,4 @@ venv/
 env/
 
 #ignore my release folder
-/release/
+release/
